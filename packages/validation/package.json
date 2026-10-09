@@ -1,0 +1,29 @@
+{
+  "name": "@syncspace/validation",
+  "version": "0.1.0",
+  "description": "Shared validation schemas for SyncSpace applications",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "zod": "^3.22.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "validation",
+    "zod",
+    "schemas",
+    "syncspace"
+  ],
+  "author": "Rahul Vaishnav <rahulvaishnav108@gmail.com>",
+  "license": "MIT"
+}

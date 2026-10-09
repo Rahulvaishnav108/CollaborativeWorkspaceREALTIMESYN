@@ -1,0 +1,26 @@
+{
+  "name": "@syncspace/shared-types",
+  "version": "0.1.0",
+  "description": "Shared TypeScript types for SyncSpace applications",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "clean": "rm -rf dist"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "typescript",
+    "types",
+    "shared",
+    "syncspace"
+  ],
+  "author": "Rahul Vaishnav <rahulvaishnav108@gmail.com>",
+  "license": "MIT"
+}

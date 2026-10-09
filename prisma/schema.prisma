@@ -1,0 +1,487 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// User Management
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  username  String   @unique
+  firstName String?
+  lastName  String?
+  avatar    String?
+  bio       String?
+  status    UserStatus @default(ACTIVE)
+  
+  // Auth fields
+  password     String
+  emailVerified Boolean @default(false)
+  emailVerificationToken String?
+  passwordResetToken     String?
+  passwordResetExpires   DateTime?
+  
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  lastSeenAt DateTime @default(now())
+  
+  // Relations
+  workspaceMemberships WorkspaceMember[]
+  conversationMembers  ConversationMember[]
+  sentMessages        Message[]
+  createdProjects     Project[]
+  assignedTasks       Task[]
+  createdTasks        Task[] @relation("TaskCreator")
+  taskComments        TaskComment[]
+  createdDocuments    Document[]
+  documentVersions    DocumentVersion[]
+  uploadedAttachments Attachment[]
+  notifications       Notification[]
+  activityLogs        ActivityLog[]
+  createdInvitations  Invitation[] @relation("InvitationCreator")
+  receivedInvitations Invitation[] @relation("InvitationRecipient")
+
+  @@map("users")
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
+// Workspace Management
+model Workspace {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  slug        String   @unique
+  avatar      String?
+  settings    Json     @default("{}")
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Relations
+  members       WorkspaceMember[]
+  projects      Project[]
+  channels      Channel[]
+  conversations Conversation[]
+  documents     Document[]
+  attachments   Attachment[]
+  invitations   Invitation[]
+
+  @@map("workspaces")
+}
+
+model WorkspaceMember {
+  id     String @id @default(cuid())
+  userId String
+  workspaceId String
+  role   WorkspaceRole @default(MEMBER)
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Relations
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, workspaceId])
+  @@map("workspace_members")
+}
+
+enum WorkspaceRole {
+  OWNER
+  ADMIN
+  MANAGER
+  MEMBER
+  GUEST
+}
+
+model Invitation {
+  id          String   @id @default(cuid())
+  email       String
+  workspaceId String
+  role        WorkspaceRole @default(MEMBER)
+  token       String   @unique
+  expiresAt   DateTime
+  acceptedAt  DateTime?
+  createdById String
+  acceptedById String?
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Relations
+  workspace    Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  createdBy    User      @relation("InvitationCreator", fields: [createdById], references: [id])
+  acceptedBy   User?     @relation("InvitationRecipient", fields: [acceptedById], references: [id])
+
+  @@map("invitations")
+}
+
+// Project Management
+model Project {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  color       String?
+  status      ProjectStatus @default(ACTIVE)
+  startDate   DateTime?
+  endDate     DateTime?
+  workspaceId String
+  createdById String
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Relations
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  createdBy   User      @relation(fields: [createdById], references: [id])
+  tasks       Task[]
+  documents   Document[]
+  attachments Attachment[]
+
+  @@map("projects")
+}
+
+enum ProjectStatus {
+  ACTIVE
+  ON_HOLD
+  COMPLETED
+  CANCELLED
+}
+
+model Task {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  status      TaskStatus @default(TODO)
+  priority    TaskPriority @default(MEDIUM)
+  dueDate     DateTime?
+  completedAt DateTime?
+  order       Int      @default(0)
+  
+  projectId   String
+  assigneeId  String?
+  createdById String
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Relations
+  project     Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  assignee    User?         @relation(fields: [assigneeId], references: [id])
+  createdBy   User          @relation("TaskCreator", fields: [createdById], references: [id])
+  comments    TaskComment[]
+  attachments Attachment[]
+
+  @@map("tasks")
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  IN_REVIEW
+  DONE
+  CANCELLED
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+model TaskComment {
+  id      String @id @default(cuid())
+  content String
+  taskId  String
+  userId  String
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Relations
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("task_comments")
+}
+
+// Communication
+model Channel {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  type        ChannelType @default(PUBLIC)
+  workspaceId String
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Relations
+  workspace     Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  conversation  Conversation?
+
+  @@unique([workspaceId, name])
+  @@map("channels")
+}
+
+enum ChannelType {
+  PUBLIC
+  PRIVATE
+}
+
+model Conversation {
+  id        String   @id @default(cuid())
+  type      ConversationType
+  name      String?
+  workspaceId String?
+  channelId   String? @unique
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Relations
+  workspace Workspace? @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  channel   Channel?   @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  members   ConversationMember[]
+  messages  Message[]
+
+  @@map("conversations")
+}
+
+enum ConversationType {
+  CHANNEL
+  DIRECT
+  GROUP
+}
+
+model ConversationMember {
+  id             String @id @default(cuid())
+  userId         String
+  conversationId String
+  role           ConversationRole @default(MEMBER)
+  joinedAt       DateTime @default(now())
+  lastReadAt     DateTime @default(now())
+  
+  // Relations
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, conversationId])
+  @@map("conversation_members")
+}
+
+enum ConversationRole {
+  ADMIN
+  MEMBER
+}
+
+model Message {
+  id             String @id @default(cuid())
+  content        String
+  type           MessageType @default(TEXT)
+  conversationId String
+  senderId       String
+  parentId       String? // For thread replies
+  editedAt       DateTime?
+  deletedAt      DateTime?
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Relations
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender       User         @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  parent       Message?     @relation("MessageThread", fields: [parentId], references: [id])
+  replies      Message[]    @relation("MessageThread")
+  reactions    MessageReaction[]
+  attachments  Attachment[]
+
+  @@map("messages")
+}
+
+enum MessageType {
+  TEXT
+  FILE
+  IMAGE
+  SYSTEM
+}
+
+model MessageReaction {
+  id        String @id @default(cuid())
+  emoji     String
+  messageId String
+  userId    String
+  
+  createdAt DateTime @default(now())
+  
+  // Relations
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId, emoji])
+  @@map("message_reactions")
+}
+
+// Document Collaboration
+model Document {
+  id          String   @id @default(cuid())
+  title       String
+  content     String   @default("")
+  type        DocumentType @default(DOCUMENT)
+  workspaceId String
+  projectId   String?
+  createdById String
+  locked      Boolean  @default(false)
+  lockedById  String?
+  lockedAt    DateTime?
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Relations
+  workspace    Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  project      Project?          @relation(fields: [projectId], references: [id])
+  createdBy    User              @relation(fields: [createdById], references: [id])
+  versions     DocumentVersion[]
+  collaborators DocumentCollaborator[]
+
+  @@map("documents")
+}
+
+enum DocumentType {
+  DOCUMENT
+  NOTE
+  MEETING_NOTES
+}
+
+model DocumentVersion {
+  id         String @id @default(cuid())
+  documentId String
+  content    String
+  version    Int
+  title      String
+  createdById String
+  
+  createdAt DateTime @default(now())
+  
+  // Relations
+  document  Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  createdBy User     @relation(fields: [createdById], references: [id])
+
+  @@unique([documentId, version])
+  @@map("document_versions")
+}
+
+model DocumentCollaborator {
+  id         String @id @default(cuid())
+  documentId String
+  userId     String
+  permission DocumentPermission @default(READ)
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Relations
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([documentId, userId])
+  @@map("document_collaborators")
+}
+
+enum DocumentPermission {
+  READ
+  WRITE
+  ADMIN
+}
+
+// File Management
+model Attachment {
+  id          String @id @default(cuid())
+  filename    String
+  originalName String
+  mimeType    String
+  size        Int
+  path        String
+  url         String?
+  
+  workspaceId String
+  uploaderId  String
+  messageId   String?
+  taskId      String?
+  projectId   String?
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Relations
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  uploader  User      @relation(fields: [uploaderId], references: [id])
+  message   Message?  @relation(fields: [messageId], references: [id])
+  task      Task?     @relation(fields: [taskId], references: [id])
+  project   Project?  @relation(fields: [projectId], references: [id])
+
+  @@map("attachments")
+}
+
+// Notifications
+model Notification {
+  id         String @id @default(cuid())
+  type       NotificationType
+  title      String
+  content    String?
+  data       Json?    @default("{}")
+  read       Boolean  @default(false)
+  readAt     DateTime?
+  userId     String
+  
+  createdAt DateTime @default(now())
+  
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notifications")
+}
+
+enum NotificationType {
+  MESSAGE
+  MENTION
+  TASK_ASSIGNED
+  TASK_COMPLETED
+  DOCUMENT_SHARED
+  INVITATION
+  SYSTEM
+}
+
+// Activity Logs
+model ActivityLog {
+  id         String @id @default(cuid())
+  action     String
+  entityType String
+  entityId   String
+  data       Json?   @default("{}")
+  userId     String?
+  ipAddress  String?
+  userAgent  String?
+  
+  createdAt DateTime @default(now())
+  
+  // Relations
+  user User? @relation(fields: [userId], references: [id])
+
+  @@map("activity_logs")
+}

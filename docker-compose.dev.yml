@@ -1,0 +1,71 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15
+    container_name: syncspace-postgres-dev
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: syncspace
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres_dev_data:/var/lib/postgresql/data
+    networks:
+      - syncspace-dev-network
+
+  # Redis for caching and real-time events
+  redis:
+    image: redis:7-alpine
+    container_name: syncspace-redis-dev
+    restart: unless-stopped
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis_dev_data:/data
+    networks:
+      - syncspace-dev-network
+
+  # MinIO for S3-compatible file storage
+  minio:
+    image: minio/minio:latest
+    container_name: syncspace-minio-dev
+    restart: unless-stopped
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      - '9000:9000'
+      - '9001:9001'
+    volumes:
+      - minio_dev_data:/data
+    command: server /data --console-address ":9001"
+    networks:
+      - syncspace-dev-network
+
+  # Optional: Adminer for database management
+  adminer:
+    image: adminer:latest
+    container_name: syncspace-adminer-dev
+    restart: unless-stopped
+    ports:
+      - '8080:8080'
+    networks:
+      - syncspace-dev-network
+    profiles:
+      - tools
+
+volumes:
+  postgres_dev_data:
+    driver: local
+  redis_dev_data:
+    driver: local
+  minio_dev_data:
+    driver: local
+
+networks:
+  syncspace-dev-network:
+    driver: bridge
